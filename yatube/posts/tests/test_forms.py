@@ -79,7 +79,7 @@ class PostCreateFormTests(TestCase):
         self.assertTrue(
             Post.objects.filter(text='Введенный текст').exists()
         )
-        self.assertEqual(Post.image.name, 'posts/small.gif')
+        self.assertEqual(Post.image, 'posts/small.gif')
 
     def test_author_edit_post(self):
         form_data = {
