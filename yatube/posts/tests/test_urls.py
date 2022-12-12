@@ -59,7 +59,7 @@ class PostURLTests(TestCase):
         }
         for url, template in templates_url_names.items():
             with self.subTest(url=url):
-                response = self.authorized_author_client.get(url)
+                response = self.authorized_client_author.get(url)
                 self.assertTemplateUsed(response, template)
 
     def test_create_url_redirect_unauth_user_to_admin_login(self):
