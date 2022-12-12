@@ -1,0 +1,16 @@
+<!DOCTYPE html> <!-- Используется html 5 версии -->
+<html lang="ru"> <!-- Язык сайта - русский -->
+  <head>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    {% load static %}
+    {% include 'includes/head.html' %}
+    <title>{% block title %}TITLE{% endblock %}</title>
+  </head>
+  <body>
+    {% include 'includes/header.html' %}     
+    <main> 
+        {% block content %}CONTENT{% endblock content %}
+    </main>       
+    {% include 'includes/footer.html' %}
+  </body>
+</html>
