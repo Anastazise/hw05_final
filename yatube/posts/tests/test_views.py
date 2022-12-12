@@ -1,239 +1,219 @@
+import shutil
+import tempfile
 from django import forms
-from django.test import Client, TestCase
+from django.contrib.auth import get_user_model
+from django.conf import settings
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
-from django.core.cache import cache
+from posts.models import Group, Post, User
+from yatube.settings import POSTS_PER_PAGE
+from django.core.files.uploadedfile import SimpleUploadedFile
 
-from ..models import Group, Post, User, Follow
+
+TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
+small_gif = (
+    b'\x47\x49\x46\x38\x39\x61\x01\x00'
+    b'\x01\x00\x00\x00\x00\x21\xf9\x04'
+    b'\x01\x0a\x00\x01\x00\x2c\x00\x00'
+    b'\x00\x00\x01\x00\x01\x00\x00\x02'
+    b'\x02\x4c\x01\x00\x3b'
+)
+uploaded = SimpleUploadedFile(
+    name='small.gif',
+    content=small_gif,
+    content_type='image/gif'
+)
 
 
-class PostTests(TestCase):
+@override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
+class PostPagesTest(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.author = User.objects.create_user(username='TestAuthor')
-        cls.auth_user = User.objects.create_user(username='TestAuthUser')
+        cls.guest_client = Client()
+        cls.author = User.objects.create_user(
+            username='auth'
+        )
+        cls.authorized_author_client = Client()
+        cls.authorized_author_client.force_login(cls.author)
+        cls.not_author = User.objects.create_user(
+            username='test_not_author'
+        )
+        cls.authorized_not_author_client = Client()
+        cls.authorized_not_author_client.force_login(cls.not_author)
         cls.group = Group.objects.create(
-            title='Тестовая группа',
+            title='test_group',
             slug='test_slug',
-            description='Тестовое описание',
+            description='test_description'
         )
+
         cls.post = Post.objects.create(
-            author=cls.author,
-            text='Тестовый пост',
+            text='test_post',
             group=cls.group,
+            author=cls.author,
+            image=uploaded,
         )
-
-    def setUp(self):
-        self.guest_client = Client()
-        self.authorized_client = Client()
-        self.authorized_client_author = Client()
-        self.authorized_client.force_login(PostTests.auth_user)
-        self.authorized_client_author.force_login(PostTests.author)
-
-    def test_correct_template(self):
-        page_names_templates = {
-            reverse('posts:index'): 'posts/index.html',
-            reverse(
-                'posts:group_list', kwargs={'slug': self.group.slug}
-            ): 'posts/group_list.html',
-            reverse(
-                'posts:profile', kwargs={'username': self.post.author}
-            ): 'posts/profile.html',
-            reverse(
-                'posts:post_detail', kwargs={'post_id': self.post.pk}
-            ): 'posts/post_detail.html',
-            reverse(
-                'posts:post_edit', kwargs={'post_id': self.post.pk}
-            ): 'posts/create_post.html',
-            reverse('posts:post_create'): 'posts/create_post.html',
+        cls.form_fields = {
+            'text': forms.fields.CharField,
+            'group': forms.fields.ChoiceField,
+            'image': forms.fields.ImageField,
         }
-        for reverse_name, template in page_names_templates.items():
-            with self.subTest(template=template):
-                response = self.authorized_client_author.get(reverse_name)
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
+
+    def test_pages_uses_correct_template(self):
+        templates_pages_names = {
+            reverse('posts:index'): 'posts/index.html',
+            reverse('posts:profile', args=[self.author.username]):
+            'posts/profile.html',
+            reverse('posts:post_detail', args=[self.post.id]):
+            'posts/post_detail.html',
+            reverse('posts:post_create'): 'posts/create_post.html',
+            reverse('posts:post_edit', args=[self.post.id]):
+            'posts/create_post.html',
+            reverse('posts:group_list', args=[self.group.slug]):
+            'posts/group_list.html',
+            reverse('posts:add_comment', args=[self.post.id]):
+            'posts/post_detail.html',
+            reverse('posts:follow_index'): 'posts/index.html',
+        }
+        for url, template in templates_pages_names.items():
+            with self.subTest(url=url):
+                response = self.authorized_author_client.get(url)
                 self.assertTemplateUsed(response, template)
 
-    def test_mainpage_correct_context(self):
-        response = self.authorized_client.get(reverse('posts:index'))
-        post_text = response.context.get('page_obj')[0].text
-        post_author = response.context.get('page_obj')[0].author.username
-        group_post = response.context.get('page_obj')[0].group.title
-        self.assertEqual(post_text, 'Тестовый пост')
-        self.assertEqual(post_author, 'TestAuthor')
-        self.assertEqual(group_post, 'Тестовая группа')
+    def check_context(self, response_post):
+        self.assertEqual(response_post.author, self.post.author)
+        self.assertEqual(response_post.group, self.group)
+        self.assertEqual(response_post.text, self.post.text)
+        self.assertEqual(response_post.image, self.post.image)
 
-    def test_group_list_page_correct_context(self):
-        url = reverse(
-            'posts:group_list', kwargs={'slug': self.group.slug}
+    def test_index_shows_correct_context(self):
+        response = self.guest_client.get(reverse('posts:index'))
+        response_post = response.context['page_obj'][0]
+        self.check_context(response_post)
+
+    def test_profile_shows_correct_context(self):
+        response = self.authorized_not_author_client.get(
+            reverse('posts:profile', args=[self.author.username])
         )
-        response = self.authorized_client.get(url)
-        group_title = response.context.get('group').title
-        group_description = response.context.get('group').description
-        group_slug = response.context.get('group').slug
-        self.assertEqual(group_title, 'Тестовая группа')
-        self.assertEqual(group_description, 'Тестовое описание')
-        self.assertEqual(group_slug, 'test_slug')
+        response_count = response.context.get('count')
+        response_title = response.context.get('title')
+        response_post = response.context['page_obj'][0]
+        self.check_context(response_post)
+        self.assertEqual(response_post.author, self.author)
+        self.assertEqual(response_count, 1)
+        self.assertEqual(response_title, self.author.username)
 
-    def test_profile_page_correct_context(self):
-        url = reverse('posts:profile', kwargs={'username': PostTests.author})
-        response = self.authorized_client_author.get(url)
-        post_text = response.context.get('page_obj')[0].text
-        post_author = response.context.get('page_obj')[0].author.username
-        group_post = response.context.get('page_obj')[0].group.title
-        self.assertEqual(post_text, 'Тестовый пост')
-        self.assertEqual(post_author, 'TestAuthor')
-        self.assertEqual(group_post, 'Тестовая группа')
+    def test_group_post_shows_correct_context(self):
+        response = self.authorized_not_author_client.get(
+            reverse('posts:group_list', args=[self.group.slug]))
+        response_group = response.context.get('group')
+        response_post = response.context['page_obj'][0]
+        self.check_context(response_post)
+        self.assertEqual(self.author, response_post.author)
+        self.assertEqual(self.group.title, response_group.title)
+        self.assertEqual(self.group.description, response_group.description)
+        self.assertEqual(self.group.slug, response_group.slug)
 
-    def test_post_detail_pages_correct_context(self):
-        url = reverse('posts:post_detail', kwargs={'post_id': self.post.pk})
-        response = self.authorized_client_author.get(url)
-        post_text = response.context.get('post').text
-        post_author = response.context.get('post').author.username
-        group_post = response.context.get('post').group.title
-        self.assertEqual(post_text, 'Тестовый пост')
-        self.assertEqual(post_author, 'TestAuthor')
-        self.assertEqual(group_post, 'Тестовая группа')
+    def test_post_detail_shows_correct_context(self):
+        response = self.authorized_not_author_client.get(
+            reverse('posts:post_detail', args=[self.post.id]))
+        response_post = response.context.get('post')
+        response_count = response.context.get('count')
+        self.check_context(response_post)
+        self.assertEqual(response_count, 1)
+        self.assertEqual(response_post, self.post)
 
-    def test_create_post_edit_correct_context(self):
-        url = reverse('posts:post_edit', kwargs={'post_id': self.post.pk})
-        response = self.authorized_client_author.get(url)
-        form_fields = {
-            'text': forms.fields.CharField,
-            'group': forms.fields.ChoiceField,
+    def test_post_create_and_post_edit_show_correct_context(self):
+        urls_pages = [reverse('posts:post_create'),
+                      reverse('posts:post_edit', args=[self.post.id])]
+        for url in urls_pages:
+            response = self.authorized_author_client.get(url)
+            for value, expected in self.form_fields.items():
+                with self.subTest(value=value):
+                    form_field = response.context.get('form').fields.get(value)
+                    self.assertIsInstance(form_field, expected)
+
+    def test_pages_show_new_post(self):
+        group = Group.objects.create(
+            title='some_title',
+            slug='some_slug',
+            description='some_description'
+        )
+        form_data = {
+            'text': 'some_text',
+            'group': group.pk,
         }
-        for field, expected in form_fields.items():
-            with self.subTest(field=field):
-                form_field = response.context.get('form').fields.get(field)
-                self.assertIsInstance(form_field, expected)
-
-    def test_create_post_correct_context(self):
-        url = reverse('posts:post_create')
-        response = self.authorized_client.get(url)
-        form_fields = {
-            'text': forms.fields.CharField,
-            'group': forms.fields.ChoiceField,
-        }
-        for field, expected in form_fields.items():
-            with self.subTest(field=field):
-                form_field = response.context.get('form').fields.get(field)
-                self.assertIsInstance(form_field, expected)
-
-    def test_create_post_display(self):
-        urls = (
-            reverse('posts:index'),
-            reverse('posts:group_list', kwargs={'slug': self.group.slug}),
-            reverse(
-                'posts:profile', kwargs={'username': self.author.username}
-            ),
-        )
-        for url in urls:
-            response = self.authorized_client_author.get(url)
-            self.assertEqual(len(response.context['page_obj'].object_list), 1)
-
-    def test_post_in_right_group(self):
-        another_group = Group.objects.create(
-            title='Дополнительная тестовая группа',
-            slug='test-another-slug',
-            description='Тестовое описание дополнительной группы',
-        )
-        response = self.authorized_client.get(
-            reverse('posts:group_list', kwargs={'slug': another_group.slug})
-        )
-        self.assertEqual(len(response.context['page_obj']), 0)
-
-    def test_new_comment_created_show_correct_context(self):
-        comment_text = f"Комментарий от {self.user_username_value} выводиться"
-        form_data = {"text": comment_text}
-        response = self.authorized_client.post(
-            reverse(
-                "posts:add_comment",
-                kwargs={"post_id": str(self.post_second.pk)},
-            ),
+        response_create = self.authorized_not_author_client.post(
+            reverse('posts:post_create'),
             data=form_data,
-            follow=True,
+            follow=True
         )
-        response = self.client.get(
-            reverse(
-                "posts:post_detail", kwargs={"post_id": self.post_second.pk}
+        response_create_post = response_create.context.get('post')
+        URLS = [reverse('posts:index'), reverse('posts:profile',
+                args=[self.author.username]),
+                reverse('posts:group_list', args=[self.group.slug])]
+        responses = []
+        for url in URLS:
+            response = self.authorized_not_author_client.get(url)
+        responses.append(response)
+        response_posts = []
+        for response in responses:
+            response_post = response.context.get('post')
+        response_posts.append(response_post)
+        self.assertIn(response_create_post, response_posts)
+
+    def test_new_post_do_not_view_other_group(self):
+        second_test_slug = 'second-test-group'
+        Group.objects.create(
+            title='other title',
+            slug=second_test_slug,
+            description='other description',
+        )
+        response = self.authorized_not_author_client.get(
+            reverse('posts:group_list', args=[second_test_slug]))
+        self.assertNotIn(self.post, response.context['page_obj'])
+
+
+class PaginatorViewsTest(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.author = User.objects.create_user(username='test_user')
+        cls.authorized_client = Client()
+        cls.authorized_client.force_login(cls.author)
+        cls.group = Group.objects.create(
+            title='test_group',
+            slug='test-slug',
+            description='test_description'
+        )
+        for i in range(13):
+            cls.post = Post.objects.create(
+                text='some_text',
+                group=cls.group,
+                author=cls.author
             )
-        )
-        context__first_object = response.context["comments"][0]
-        self.assertEqual(context__first_object.author, self.user)
-        self.assertEqual(context__first_object.text, comment_text)
 
-    def test_cache_index_page(self):
-        response = self.client.get(reverse("posts:index"))
-        context_first_object_before_add = response.context["page_obj"][0]
+        cls.templates = [
+            reverse('posts:index'),
+            reverse('posts:group_list', args=[cls.group.slug]),
+            reverse('posts:profile', args=[cls.author.username]),
+        ]
 
-        post_text = "Тестовая запись появляется после очистки кэша."
-        post = Post.objects.create(
-            author=self.user, text=post_text, group=self.group
-        )
-        response = self.client.get(reverse("posts:index"))
-        context_right_after_add = response.context
-        self.assertIsNone(context_right_after_add)
+    def test_first_page_contains_ten_records(self):
+        for template in self.templates:
+            with self.subTest(template=template):
+                response = self.client.get(template)
+                self.assertEqual(len(response.context['page_obj']),
+                                 POSTS_PER_PAGE)
 
-        cache.clear()
-        response = self.client.get(reverse("posts:index"))
-        context_first_object_add_after_clear_cache = response.context[
-            "page_obj"
-        ][0]
-        self.db_vs_context_comparison(
-            post, context_first_object_add_after_clear_cache, no_iamge=True
-        )
-
-        post.delete()
-        response = self.client.get(reverse("posts:index"))
-        context_right_after_delete_post = response.context
-        self.assertIsNone(context_right_after_delete_post)
-
-        cache.clear()
-        response = self.client.get(reverse("posts:index"))
-        context_first_object_delete_after_clear_cache = response.context[
-            "page_obj"
-        ][0]
-        self.db_vs_context_comparison(
-            context_first_object_before_add,
-            context_first_object_delete_after_clear_cache,
-            no_iamge=True,
-        )
-
-    def test_follow_on_user(self):
-        count_follow = Follow.objects.count()
-        self.follower_client.post(
-            reverse(
-                'posts:profile_follow',
-                kwargs={'username': self.post_follower}))
-        follow = Follow.objects.all().latest('id')
-        self.assertEqual(Follow.objects.count(), count_follow + 1)
-        self.assertEqual(follow.author_id, self.post_follower.id)
-        self.assertEqual(follow.user_id, self.post_autor.id)
-
-    def test_unfollow_on_user(self):
-        Follow.objects.create(
-            user=self.post_autor,
-            author=self.post_follower)
-        count_follow = Follow.objects.count()
-        self.follower_client.post(
-            reverse(
-                'posts:profile_unfollow',
-                kwargs={'username': self.post_follower}))
-        self.assertEqual(Follow.objects.count(), count_follow - 1)
-
-    def test_follow_on_authors(self):
-        post = Post.objects.create(
-            author=self.post_autor,
-            text="Подпишись на меня")
-        Follow.objects.create(
-            user=self.post_follower,
-            author=self.post_autor)
-        response = self.author_client.get(
-            reverse('posts:follow_index'))
-        self.assertIn(post, response.context['page_obj'].object_list)
-
-    def test_notfollow_on_authors(self):
-        post = Post.objects.create(
-            author=self.post_autor,
-            text="Подпишись на меня")
-        response = self.author_client.get(
-            reverse('posts:follow_index'))
-        self.assertNotIn(post, response.context['page_obj'].object_list)
+    def test_second_page_contains_three_records(self):
+        for template in self.templates:
+            with self.subTest(template=template):
+                response = self.client.get((template) + '?page=2')
+                self.assertEqual(len(response.context['page_obj']),
+                                 len(range(13)) - POSTS_PER_PAGE)
