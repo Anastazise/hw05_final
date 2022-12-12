@@ -55,14 +55,13 @@ class Comment(CreatedModel):
         related_name="comments",
         verbose_name="Автор комментария",
     )
-    text = models.TextField('Текст', 
-    help_text='Текст нового комментария')
+    text = models.TextField('Текст',
+                            help_text='Текст нового комментария')
     post = models.ForeignKey(
         Post,
         on_delete=models.CASCADE,
         related_name='comments',
         verbose_name='Пост')
-
 
     class Meta:
         ordering = ("-created",)
