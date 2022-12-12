@@ -59,7 +59,7 @@ class PostURLTests(TestCase):
                 kwargs={'slug': self.group.slug}): 'posts/group_list.html',
             reverse(
                 'posts:profile',
-                kwargs={'username': self.user_author}): 'posts/profile.html',
+                kwargs={'username': self.author}): 'posts/profile.html',
             reverse(
                 'posts:post_detail',
                 kwargs={'post_id': self.post.id}): 'posts/post_detail.html',
