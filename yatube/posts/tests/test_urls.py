@@ -1,6 +1,4 @@
 from http import HTTPStatus
-from django.core.cache import cache
-from django.urls import reverse
 from django.test import Client, TestCase
 
 from ..models import Group, Post, User
@@ -80,18 +78,3 @@ class PostURLTests(TestCase):
         self.assertRedirects(
             response, (f'/auth/login/?next=/posts/{self.post.pk}/edit/')
         )
-
-    def test_cache_index_page(self):
-        post = Post.objects.create(
-            text='Пост под кеш',
-            author=self.user)
-        content_add = self.authorized_client.get(
-            reverse('posts:index')).content
-        post.delete()
-        content_delete = self.authorized_client.get(
-            reverse('posts:index')).content
-        self.assertEqual(content_add, content_delete)
-        cache.clear()
-        content_cache_clear = self.authorized_client.get(
-            reverse('posts:index')).content
-        self.assertNotEqual(content_add, content_cache_clear)
