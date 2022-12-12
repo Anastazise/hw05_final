@@ -107,7 +107,8 @@ class PostPagesTest(TestCase):
         self.assertEqual(group_slug, 'test_slug')
 
     def test_profile_page_correct_context(self):
-        url = reverse('posts:profile', kwargs={'username': PostPagesTest.author})
+        url = reverse('posts:profile',
+                      kwargs={'username': PostPagesTest.author})
         response = self.authorized_client_author.get(url)
         post_text = response.context.get('page_obj')[0].text
         post_author = response.context.get('page_obj')[0].author.username
@@ -238,7 +239,6 @@ class PaginatorViewsTest(TestCase):
             reverse('posts:group_list', args=[cls.group.slug]),
             reverse('posts:profile', args=[cls.author.username]),
         ]
-
 
     def test_second_page_contains_three_records(self):
         for template in self.templates:
