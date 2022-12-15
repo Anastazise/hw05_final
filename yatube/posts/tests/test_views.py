@@ -6,7 +6,6 @@ from django.conf import settings
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from posts.models import Group, Post
-from yatube.settings import POSTS_PER_PAGE
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.cache import cache
 
