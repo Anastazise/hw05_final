@@ -83,14 +83,14 @@ class PostPagesTest(TestCase):
                 'posts:profile',
                 kwargs={'username': self.user.username}))
         self.assertEqual(response.context['author'], self.user)
-        self.check_post_info(response.context['page_obj'][0])
+        self.check_context(response.context['page_obj'][0])
 
     def test_post_detail_shows_correct_context(self):
         response = self.authorized_not_author_client.get(
             reverse(
                 'posts:post_detail',
                 kwargs={'post_id': self.post.id}))
-        self.check_post_info(response.context['post'])
+        self.check_context(response.context['post'])
 
     def test_group_post_shows_correct_context(self):
         response = self.authorized_not_author_client.get(
