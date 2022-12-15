@@ -78,27 +78,19 @@ class PostPagesTest(TestCase):
         self.check_context(response.context['page_obj'][0])
 
     def test_profile_shows_correct_context(self):
-        cache.clear()
-        response = self.authorized_not_author_client.get(
-            reverse('posts:profile', args=[self.author.username])
-        )
-        response_count = response.context.get('count')
-        response_title = response.context.get('title')
-        response_post = response.context['page_obj'][0]
-        self.check_context(response_post)
-        self.assertEqual(response_post.author, self.author)
-        self.assertEqual(response_count, 1)
-        self.assertEqual(response_title, self.author.username)
+        response = self.authorized_client.get(
+            reverse(
+                'posts:profile',
+                kwargs={'username': self.user.username}))
+        self.assertEqual(response.context['author'], self.user)
+        self.check_post_info(response.context['page_obj'][0])
 
     def test_post_detail_shows_correct_context(self):
-        cache.clear()
-        response = self.authorized_not_author_client.get(
-            reverse('posts:post_detail', args=[self.post.id]))
-        response_post = response.context.get('post')
-        response_count = response.context.get('count')
-        self.check_context(response_post)
-        self.assertEqual(response_count, 1)
-        self.assertEqual(response_post, self.post)
+        response = self.authorized_client.get(
+            reverse(
+                'posts:post_detail',
+                kwargs={'post_id': self.post.id}))
+        self.check_post_info(response.context['post'])
 
     def test_group_post_shows_correct_context(self):
         response = self.authorized_not_author_client.get(
