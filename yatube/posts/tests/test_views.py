@@ -78,7 +78,7 @@ class PostPagesTest(TestCase):
         self.check_context(response.context['page_obj'][0])
 
     def test_profile_shows_correct_context(self):
-        response = self.authorized_client.get(
+        response = self.authorized_not_author_client.get(
             reverse(
                 'posts:profile',
                 kwargs={'username': self.user.username}))
@@ -86,7 +86,7 @@ class PostPagesTest(TestCase):
         self.check_post_info(response.context['page_obj'][0])
 
     def test_post_detail_shows_correct_context(self):
-        response = self.authorized_client.get(
+        response = self.authorized_not_author_client.get(
             reverse(
                 'posts:post_detail',
                 kwargs={'post_id': self.post.id}))
