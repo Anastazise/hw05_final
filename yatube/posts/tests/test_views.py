@@ -73,14 +73,12 @@ class PostPagesTest(TestCase):
         self.assertEqual(response_post.image, self.post.image)
 
     def test_index_shows_correct_context(self):
-        """Шаблон index сформирован с правильным контекстом."""
         cache.clear()
         response = self.guest_client.get(reverse('posts:index'))
         self.check_context(response.context['page_obj'][0])
 
     def test_profile_shows_correct_context(self):
         cache.clear()
-        """Шаблон profile сформирован с правильным контекстом."""
         response = self.authorized_not_author_client.get(
             reverse('posts:profile', args=[self.author.username])
         )
@@ -94,7 +92,6 @@ class PostPagesTest(TestCase):
 
     def test_post_detail_shows_correct_context(self):
         cache.clear()
-        """Шаблон post_detail сформирован с правильным контекстом."""
         response = self.authorized_not_author_client.get(
             reverse('posts:post_detail', args=[self.post.id]))
         response_post = response.context.get('post')
@@ -104,7 +101,6 @@ class PostPagesTest(TestCase):
         self.assertEqual(response_post, self.post)
 
     def test_group_post_shows_correct_context(self):
-        """Шаблон group_post сформирован с правильным контекстом."""
         response = self.authorized_not_author_client.get(
             reverse('posts:group_list', args=[self.group.slug]))
         response_group = response.context.get('group')
@@ -116,8 +112,6 @@ class PostPagesTest(TestCase):
         self.assertEqual(self.group.slug, response_group.slug)
 
     def test_post_create_and_post_edit_show_correct_context(self):
-        """Шаблоны post_create, post_edit
-        сформированы с правильным контекстом."""
         urls_pages = [reverse('posts:post_create'),
                       reverse('posts:post_edit', args=[self.post.id])]
         for url in urls_pages:
@@ -128,7 +122,6 @@ class PostPagesTest(TestCase):
                     self.assertIsInstance(form_field, expected)
 
     def test_pages_show_new_post(self):
-        """Новый пост отображается на страницах index, profile, group"""
         group = Group.objects.create(
             title='some_title',
             slug='some_slug',
@@ -158,7 +151,6 @@ class PostPagesTest(TestCase):
         self.assertIn(response_create_post, response_posts)
 
     def test_new_post_do_not_view_other_group(self):
-        """Новый post не отображается в другой группе."""
         second_test_slug = 'second-test-group'
         Group.objects.create(
             title='other title',
@@ -196,8 +188,6 @@ class PaginatorViewsTest(TestCase):
         ]
 
     def test_first_page_contains_ten_records(self):
-        """Paginator предоставляет ожидаемое количество постов
-         на первую страницую."""
         for template in self.templates:
             with self.subTest(template=template):
                 response = self.client.get(template)
@@ -205,8 +195,6 @@ class PaginatorViewsTest(TestCase):
                                  POSTS_PER_PAGE)
 
     def test_second_page_contains_three_records(self):
-        """Paginator предоставляет ожидаемое количество постов
-         на вторую страницую."""
         for template in self.templates:
             with self.subTest(template=template):
                 response = self.client.get((template) + '?page=2')

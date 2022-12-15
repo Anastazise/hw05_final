@@ -42,7 +42,6 @@ class PostFormTests(TestCase):
         self.auth_user_comm.force_login(self.comm_author)
 
     def test_authorized_user_create_post(self):
-        """Проверка создания записи авторизированным клиентом."""
         posts_count = Post.objects.count()
         small_gif = (
             b'\x47\x49\x46\x38\x39\x61\x02\x00'
@@ -81,7 +80,6 @@ class PostFormTests(TestCase):
         self.assertEqual(post.image.name, 'posts/small.gif')
 
     def test_authorized_user_create_comment(self):
-        """Проверка создания коментария авторизированным клиентом."""
         comments_count = Comment.objects.count()
         post = Post.objects.create(
             text='Текст поста для редактирования',
@@ -102,7 +100,6 @@ class PostFormTests(TestCase):
             response, reverse('posts:post_detail', args={post.id}))
 
     def test_nonauthorized_user_create_comment(self):
-        """Проверка создания комментария не авторизированным пользователем."""
         comments_count = Comment.objects.count()
         post = Post.objects.create(
             text='Текст поста для редактирования',
@@ -121,7 +118,6 @@ class PostFormTests(TestCase):
         self.assertRedirects(response, redirect)
 
     def test_authorized_user_edit_post(self):
-        """Проверка редактирования записи авторизированным клиентом."""
         post = Post.objects.create(
             text='Текст поста для редактирования',
             author=self.post_author)
@@ -144,7 +140,6 @@ class PostFormTests(TestCase):
         self.assertEqual(post_one.group_id, form_data['group'])
 
     def test_nonauthorized_user_create_post(self):
-        """Проверка создания записи не авторизированным пользователем."""
         posts_count = Post.objects.count()
         form_data = {
             'text': 'Текст поста',
