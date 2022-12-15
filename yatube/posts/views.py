@@ -9,6 +9,15 @@ from yatube.settings import POSTS_PER_PAGE
 from django.views.decorators.cache import cache_page
 
 
+def pagination(request, post_list):
+    paginator = Paginator(post_list, POSTS_PER_PAGE)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    return {
+        'page_obj': page_obj,
+    }
+
+
 @cache_page(20)
 def index(request):
     posts = Post.objects.all()
@@ -36,34 +45,36 @@ def group_posts(request, slug):
 
 def profile(request, username):
     author = get_object_or_404(User, username=username)
-    paginator = Paginator(
-        author.posts.all(),
-        settings.POSTS_PER_PAGE
-    )
-    page_obj = paginator.get_page(
-        request.GET.get('page')
-    )
-    following = request.user.is_authenticated
-    if following:
-        following = author.following.filter(user=request.user).exists()
-    template = 'posts/profile.html'
+    post_list = author.posts.all()
+    count = post_list.count()
+    title = username
+    following = (request.user.is_authenticated and author != request.user
+                 and Follow.objects.filter(author=author,
+                                           user=request.user).exists())
     context = {
-        'page_obj': page_obj,
+        'title': title,
+        'count': count,
         'author': author,
-        'following': following
+        'post_list': post_list,
+        'following': following,
     }
+    template = 'posts/profile.html'
+    context.update(pagination(request, post_list))
     return render(request, template, context)
 
 
 def post_detail(request, post_id):
-    post = get_object_or_404(Post, pk=post_id)
-    template = "posts/post_detail.html"
-    form = CommentForm()
+    post = get_object_or_404(Post, id=post_id)
+    user = post.author
+    count = Post.objects.filter(author_id=user).all().count()
+    form = CommentForm(request.POST or None)
     comments = post.comments.all()
+    template = 'posts/post_detail.html'
     context = {
-        "post": post,
-        "form": form,
-        "comments": comments,
+        'post': post,
+        'count': count,
+        'comments': comments,
+        'form': form,
     }
     return render(request, template, context)
 
