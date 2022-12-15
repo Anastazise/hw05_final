@@ -1,80 +1,82 @@
 from http import HTTPStatus
-from django.test import Client, TestCase
+from django.contrib.auth import get_user_model
+from django.test import TestCase, Client
+from ..models import Post, Group
 
-from ..models import Group, Post, User
+User = get_user_model()
 
 
-class PostURLTests(TestCase):
+class PostsURLTests(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.author = User.objects.create_user(username='TestAuthor')
-        cls.auth_user = User.objects.create_user(username='TestAuthUser')
+        cls.guest_client = Client()
+        cls.user = User.objects.create_user(username='oleg')
+        cls.authorized_client = Client()
+        cls.authorized_client.force_login(cls.user)
         cls.group = Group.objects.create(
-            title='Тестовая группа',
+            title='name',
             slug='test_slug',
-            description='Тестовое описание',
+            description='random-group'
         )
-
         cls.post = Post.objects.create(
-            author=cls.author,
-            text='Тестовый пост',
-            group=cls.group,
+            text='Some-text',
+            author=cls.user,
+            group=cls.group
         )
+        cls.group_slug = cls.group.slug
+        cls.username = cls.user.username
+        cls.post_id = cls.post.id
+        cls.public_urls = (
+            (f'/group/{cls.group_slug}/', 'posts/group_list.html'),
+            (f'/profile/{cls.username}/', 'posts/profile.html'),
+            (f'/posts/{cls.post_id}/', 'posts/post_detail.html'),
+        )
+        cls.private_urls = (
+            (f'/posts/{cls.post_id}/edit/', 'posts/create_post.html'),
+            ('/create/', 'posts/create_post.html')
+        )
+        cls.post_url = f'/posts/{PostsURLTests.post_id}/'
+        cls.post_edit_url = f'/posts/{PostsURLTests.post_id}/edit/'
 
-    def setUp(self):
-        self.guest_client = Client()
-        self.authorized_client = Client()
-        self.authorized_client_author = Client()
-        self.authorized_client.force_login(PostURLTests.auth_user)
-        self.authorized_client_author.force_login(PostURLTests.author)
-
-    def test_mainpage(self):
-        response = self.guest_client.get('/')
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-
-    def test_page_404(self):
-        response = self.guest_client.get('/page_404/')
+    def test_404(self):
+        response = PostsURLTests.authorized_client.get(
+            '/not_exists/'
+        )
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
 
-    def test_pages_available_to_unauth_user(self):
-        url_names = (
-            '/',
-            '/group/test_slug/',
-            '/profile/TestAuthor/',
-            f'/posts/{self.post.pk}/',
-        )
-        for address in url_names:
-            with self.subTest():
-                response = self.guest_client.get(address)
+    def test_public_pages(self):
+        for address, _ in PostsURLTests.public_urls:
+            with self.subTest(address=address):
+                response = PostsURLTests.guest_client.get(address)
                 self.assertEqual(response.status_code, HTTPStatus.OK)
 
-    def test_urls_uses_correct_template(self):
-        templates_url_names = {
-            'posts/index.html': '/',
-            'posts/group_list.html': '/group/test_slug/',
-            'posts/profile.html': '/profile/TestAuthor/',
-            'posts/post_detail.html': f'/posts/{self.post.pk}/',
-            'posts/create_post.html': '/create/',
-        }
-        for url, template in templates_url_names.items():
-            with self.subTest(url=url):
-                response = self.authorized_client_author.get(url)
+    def test_public_urls_uses_correct_template(self):
+        for address, template in PostsURLTests.public_urls:
+            with self.subTest(address=address):
+                response = PostsURLTests.guest_client.get(address)
                 self.assertTemplateUsed(response, template)
 
-    def test_create_url_redirect_unauth_user_to_admin_login(self):
-        response = self.guest_client.get('/create/', follow=True)
-        self.assertRedirects(
-            response, '/auth/login/?next=/create/')
+    def test_private_urls_uses_correct_template(self):
+        for address, template in PostsURLTests.private_urls:
+            with self.subTest(address=address):
+                response = PostsURLTests.authorized_client.get(address)
+                self.assertTemplateUsed(response, template)
 
-    def test_url_exists_at_desired_location_for_auth_user(self):
-        response = self.authorized_client.get('/create/')
+    def test_only_author_can_edit(self):
+        response = PostsURLTests.authorized_client.get(
+            PostsURLTests.post_edit_url
+        )
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
-    def test_task_detail_url_redirect_unauth_user_on_login(self):
-        response = self.client.get(
-            f'/posts/{self.post.pk}/edit/', follow=True
+    def test_only_authorized_can_create_post(self):
+        response = PostsURLTests.authorized_client.get(
+            '/create/'
         )
-        self.assertRedirects(
-            response, (f'/auth/login/?next=/posts/{self.post.pk}/edit/')
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+    def test_not_authtorized_can_not_create_post(self):
+        response = PostsURLTests.guest_client.get(
+            '/create/'
         )
+        self.assertRedirects(response, '/auth/login/?next=/create/')
