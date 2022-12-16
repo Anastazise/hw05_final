@@ -78,7 +78,7 @@ class PostPagesTest(TestCase):
         response = self.authorized_not_author_client.get(
             reverse('posts:profile', args=[self.author.username])
         )
-        response_auth = response.context.get('author')
+        response_auth = response.context.get('username')
         response_post = response.context['page_obj'][0]
         self.check_context(response_post)
         self.assertEqual(response_post.author, self.author)
