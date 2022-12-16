@@ -1,15 +1,13 @@
 import shutil
 import tempfile
 from django import forms
-from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
-from posts.models import Group, Post
+from posts.models import Group, Post, User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.cache import cache
 
-User = get_user_model()
 
 TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
 small_gif = (
@@ -80,21 +78,17 @@ class PostPagesTest(TestCase):
         response = self.authorized_not_author_client.get(
             reverse('posts:profile', args=[self.author.username])
         )
-        response_count = response.context.get('count')
-        response_title = response.context.get('title')
+        response_auth = response.context.get('author')
         response_post = response.context['page_obj'][0]
         self.check_context(response_post)
         self.assertEqual(response_post.author, self.author)
-        self.assertEqual(response_count, 1)
-        self.assertEqual(response_title, self.author.username)
+        self.assertEqual(response_auth, self.author.username)
 
     def test_post_detail_shows_correct_context(self):
         response = self.authorized_not_author_client.get(
             reverse('posts:post_detail', args=[self.post.id]))
         response_post = response.context.get('post')
-        response_count = response.context.get('count')
         self.check_context(response_post)
-        self.assertEqual(response_count, 1)
         self.assertEqual(response_post, self.post)
 
     def test_group_post_shows_correct_context(self):
