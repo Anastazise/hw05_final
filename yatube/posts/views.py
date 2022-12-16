@@ -3,31 +3,25 @@ from django.conf import settings
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from .models import Group, Post, User, Follow
+from .models import Group, Post, User, Follow, Comment
 from .forms import PostForm, CommentForm
 from yatube.settings import POSTS_PER_PAGE
 from django.views.decorators.cache import cache_page
 
 
-def pagination(request, post_list):
-    paginator = Paginator(post_list, POSTS_PER_PAGE)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    return {
-        'page_obj': page_obj,
-    }
-
-
 @cache_page(20)
 def index(request):
+    template = 'posts/index.html'
+    title = 'Последние обновления на сайте'
     posts = Post.objects.all()
-    paginator = Paginator(posts, POSTS_PER_PAGE)
+    paginator = Paginator(posts, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
     context = {
-        'page_obj': page_obj,
+        'title': title,
+        'page_obj': page_obj
     }
-    return render(request, 'posts/index.html', context)
+    return render(request, template, context)
 
 
 def group_posts(request, slug):
@@ -43,40 +37,42 @@ def group_posts(request, slug):
     return render(request, 'posts/group_list.html', context)
 
 
-def profile(request, username):
+def profile(request, username, following=False):
     author = get_object_or_404(User, username=username)
-    post_list = author.posts.all()
-    count = post_list.count()
-    title = username
-    following = (request.user.is_authenticated and author != request.user
-                 and Follow.objects.filter(author=author,
-                                           user=request.user).exists())
+    posts = Post.objects.filter(author=author)
+    paginator = Paginator(posts, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    number_of_posts = posts.count()
+    if request.user.is_authenticated:
+        following = Follow.objects.filter(
+            author=author,
+            user=request.user
+        ).exists()
     context = {
-        'title': title,
-        'count': count,
         'author': author,
-        'post_list': post_list,
-        'following': following,
+        'username': username,
+        'number_of_posts': number_of_posts,
+        'page_obj': page_obj,
+        'following': following
     }
-    template = 'posts/profile.html'
-    context.update(pagination(request, post_list))
-    return render(request, template, context)
+    return render(request, 'posts/profile.html', context)
 
 
 def post_detail(request, post_id):
     post = get_object_or_404(Post, id=post_id)
-    user = post.author
-    count = Post.objects.filter(author_id=user).all().count()
-    form = CommentForm(request.POST or None)
-    comments = post.comments.all()
-    template = 'posts/post_detail.html'
+    title = str(post.text)[:30]
+    number_of_posts = Post.objects.filter(author=post.author).count()
+    form = CommentForm()
+    comments = Comment.objects.filter(post=post)
     context = {
         'post': post,
-        'count': count,
-        'comments': comments,
+        'title': title,
+        'number_of_posts': number_of_posts,
         'form': form,
+        'comments': comments
     }
-    return render(request, template, context)
+    return render(request, 'posts/post_detail.html', context)
 
 
 @login_required
