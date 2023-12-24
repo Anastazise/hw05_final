@@ -4,17 +4,17 @@
     <a class="navbar-brand" href="{% url 'posts:index' %}">
       <img src="{% static 'img/logo.png' %}" width="30" height="30" 
            class="d-inline-block align-top" alt="">
-      <span style="color:red">Ya</span>tube</a>
+      <span style="color:purple">Я</span>Втеме</a>
     </a>
     {% with request.resolver_match.view_name as view_name %}
     <ul class="nav nav-pills">
       <li class="nav-item"> 
         <a class="nav-link{% if view_name  == 'about:author' %} active{% endif %}" 
-           href="{% url 'about:author' %}">Об авторе</a>
+           href="{% url 'about:author' %}">О сайте</a>
       </li>
       <li class="nav-item">
         <a class="nav-link{% if view_name  == 'about:tech' %} active{% endif %}" 
-           href="{% url 'about:tech' %}">Технологии</a>
+           href="{% url 'about:tech' %}">Контакты</a>
       </li>
       {% if user.is_authenticated %}
         <li class="nav-item"> 

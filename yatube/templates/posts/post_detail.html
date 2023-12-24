@@ -28,7 +28,7 @@
             <img class="card-img my-2" src="{{ im.url }}">
           {% endthumbnail %}
           <p>{{ post.text }}</p>
-          {% if user.id ==  post.author.id %}
+          {% if permission_check == True or user.id == post.author.id%}
             <a class="btn btn-primary" href="{% url 'posts:post_edit' post.id %}">
               Редактировать запись
             </a>

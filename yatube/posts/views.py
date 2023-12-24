@@ -7,6 +7,11 @@ from .models import Group, Post, User, Follow, Comment
 from .forms import PostForm, CommentForm
 from yatube.settings import POSTS_PER_PAGE
 from django.views.decorators.cache import cache_page
+from django.contrib.auth.models import Group as permission
+
+
+is_staff = permission.objects.get_or_create(name='staff')
+users_in_stuff = User.objects.filter(groups__name='staff')
 
 
 @cache_page(20)
@@ -61,6 +66,12 @@ def profile(request, username, following=False):
 
 def post_detail(request, post_id):
     post = get_object_or_404(Post, id=post_id)
+    # print(is_staff[0])
+    if request.user in users_in_stuff:
+        permission_check = True
+    else:
+        permission_check = False
+    print(permission_check)
     title = str(post.text)[:30]
     number_of_posts = Post.objects.filter(author=post.author).count()
     form = CommentForm()
@@ -70,7 +81,8 @@ def post_detail(request, post_id):
         'title': title,
         'number_of_posts': number_of_posts,
         'form': form,
-        'comments': comments
+        'comments': comments,
+        'permission_check': permission_check
     }
     return render(request, 'posts/post_detail.html', context)
 
@@ -89,7 +101,7 @@ def post_create(request):
 @login_required
 def post_edit(request, post_id):
     post = get_object_or_404(Post, pk=post_id)
-    if post.author != request.user:
+    if post.author != request.user and request.user not in users_in_stuff:
         return redirect('posts:post_detail', post_id=post_id)
     form = PostForm(
         request.POST or None,
